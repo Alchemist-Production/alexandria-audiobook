@@ -3,8 +3,8 @@ import os
 import re
 
 def main():
-    input_path = "annotated_script.txt"
-    output_path = "voices.json"
+    input_path = "../annotated_script.txt"
+    output_path = "../voices.json"
     
     if not os.path.exists(input_path):
         print(f"Error: {input_path} not found. Please generate the script first.")

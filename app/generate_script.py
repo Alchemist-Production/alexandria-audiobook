@@ -1,39 +1,79 @@
-import argparse
 import os
+import sys
 import json
 import google.generativeai as genai
 
-def get_annotated_script(model, chunk):
-    response = model.generate_content(
-        "You are a script writer. Your task is to convert a book chapter into a script format. The script should be annotated with NARRATOR: for narrative parts and CHARACTER_NAME: for dialogue. Make sure to properly attribute the dialogue to the correct character.
+SCRIPT_PROMPT = """You are converting a book/novel into an audiobook script. Your task is to output ONLY plain text lines in this exact format:
 
-" + chunk
-    )
+SPEAKER_NAME: The text they speak or narrate.
+
+RULES:
+1. Use "NARRATOR" for ALL descriptive text, scene-setting, action descriptions, inner thoughts, and anything that is NOT spoken dialogue by a character.
+2. Use the CHARACTER'S NAME (in CAPS, underscores for spaces) for spoken dialogue only.
+3. Output ONLY plain text. NO HTML tags, NO markdown, NO formatting (no <center>, <b>, **, ##, etc.).
+4. Each line must start with a speaker label followed by a colon and space.
+5. Keep the original meaning and content - do not summarize or skip text.
+6. If a character's name is unknown, use a descriptive label like "UNKNOWN_VOICE" or "OLD_MAN".
+
+EXAMPLE INPUT:
+The sun set over the mountains. "I can't believe we made it," Sarah whispered. John nodded silently, his eyes fixed on the horizon.
+
+EXAMPLE OUTPUT:
+NARRATOR: The sun set over the mountains.
+SARAH: I can't believe we made it.
+NARRATOR: John nodded silently, his eyes fixed on the horizon.
+
+Now convert this text:
+
+"""
+
+def get_annotated_script(model, chunk):
+    response = model.generate_content(SCRIPT_PROMPT + chunk)
     return response.text
 
-def read_book_in_chunks(file_path, chunk_size=4096):
-    with open(file_path, 'r') as f:
-        while True:
-            chunk = f.read(chunk_size)
-            if not chunk:
-                break
-            yield chunk
-
 def main():
-    parser = argparse.ArgumentParser(description='Generate an annotated script from a book file.')
-    parser.add_argument('--file', type=str, required=True, help='The path to the book file.')
-    args = parser.parse_args()
+    if len(sys.argv) < 2:
+        print("Error: No input file path provided.")
+        print("Usage: python generate_script.py <input_file_path>")
+        sys.exit(1)
 
-    print(f"Processing book: {args.file}")
+    input_file_path = sys.argv[1]
+    print(f"Processing book from: {input_file_path}")
 
-    with open("config.json", "r") as f:
+    if not os.path.exists(input_file_path):
+        print(f"Error: Input file not found: {input_file_path}")
+        sys.exit(1)
+
+    with open(input_file_path, 'r', encoding='utf-8') as f:
+        book_content = f.read()
+
+    # Load LLM config from config.json
+    config_path = os.path.join(os.path.dirname(__file__), "config.json")
+    if not os.path.exists(config_path):
+        print("Error: config.json not found. Please run configure.js first.")
+        sys.exit(1)
+
+    with open(config_path, "r") as f:
         config = json.load(f)
 
-    genai.configure(api_key="AIzaSyCJCok2v54_L1wL8e21SREAfWIWdL1Ilwc") # TODO: Remove this hardcoded key and use environment variable if publishing to GitHub
-    model = genai.GenerativeModel(config["llm"]["model_name"])
+    llm_config = config.get("llm", {})
+    api_key = llm_config.get("api_key")
+    model_name = llm_config.get("model_name", "gemini-pro") # Default to gemini-pro if not specified
+
+    if not api_key:
+        print("Error: LLM API Key not found in config.json. Please run configure.js to set it.")
+        sys.exit(1)
+
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel(model_name)
 
     annotated_script = ""
-    for chunk in read_book_in_chunks(args.file):
+    # Process content in chunks if necessary, or pass the entire content
+    # For now, let's pass the entire content as one chunk for simplicity
+    # If API has length limits, this would need to be re-chunked
+    chunk_size = 4096 # Re-using chunk_size for consistency, though not reading from file
+    for i in range(0, len(book_content), chunk_size):
+        chunk = book_content[i:i+chunk_size]
         print(f"Processing chunk of size: {len(chunk)}")
         annotated_script += get_annotated_script(model, chunk)
 
@@ -42,9 +82,7 @@ def main():
     with open(output_path, 'w') as f:
         f.write(annotated_script)
     
-    print(f"
-
-Annotated script saved to {output_path}")
+    print(f"\nAnnotated script saved to {output_path}")
 
 
 if __name__ == '__main__':

@@ -3,8 +3,8 @@ module.exports = {
     method: "shell.run",
     params: {
       venv: "env",
-      // No 'path', so it runs from the project root
-      message: "python app/generate_audiobook.py",
+      path: "app",
+      message: "python generate_audiobook.py"
     }
   }]
 }
