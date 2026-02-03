@@ -33,14 +33,18 @@ RULES:
 5. Output ONLY valid JSON - no markdown, no code blocks, no explanations
 6. Preserve the emotional arc of the story
 7. IMPORTANT: Always output COMPLETE sentences. Never truncate text mid-sentence.
+8. SPLIT ON TONE CHANGES: When a character's emotional tone shifts within their dialogue, create SEPARATE entries for each tone. This allows different voice styles to be applied.
 
-EXAMPLE:
+EXAMPLE - Notice how Marcus's dialogue is split when his tone changes from teasing to serious:
 [
   {"speaker": "NARRATOR", "text": "The old mansion loomed against the stormy sky.", "style": "ominous, foreboding"},
   {"speaker": "ELENA", "text": "[shivers] I don't like this place.", "style": "nervous, quiet"},
-  {"speaker": "MARCUS", "text": "[chuckles] Scared of a little dust?", "style": "teasing, confident"},
+  {"speaker": "MARCUS", "text": "[chuckles] Scared of a little dust?", "style": "teasing, playful"},
+  {"speaker": "MARCUS", "text": "But actually... you might be right.", "style": "serious, reconsidering"},
+  {"speaker": "MARCUS", "text": "Something does feel wrong here.", "style": "uneasy, cautious"},
   {"speaker": "NARRATOR", "text": "A floorboard creaked somewhere above them.", "style": "tense, suspenseful"},
-  {"speaker": "ELENA", "text": "[gasps]", "style": "startled"}
+  {"speaker": "ELENA", "text": "[gasps]", "style": "startled"},
+  {"speaker": "ELENA", "text": "What was that?!", "style": "panicked, frightened"}
 ]
 
 TEXT TO CONVERT:
