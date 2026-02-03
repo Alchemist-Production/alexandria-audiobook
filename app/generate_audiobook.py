@@ -2,7 +2,7 @@ import os
 import re
 import json
 from pydub import AudioSegment
-from gradio_client import Client
+from gradio_client import Client, handle_file
 import shutil
 
 MAX_CHUNK_CHARS = 500
@@ -278,7 +278,7 @@ def generate_clone_voice(text, speaker, voice_config, output_path, client):
         processed_text, _ = preprocess_text_for_tts(text)
 
         result = client.predict(
-            ref_audio,           # Reference audio file path
+            handle_file(ref_audio),  # Reference audio file path (wrapped for Gradio)
             ref_text,            # Transcript of reference audio
             processed_text,      # Text to generate
             "Auto",              # Language detection

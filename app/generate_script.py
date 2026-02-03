@@ -15,7 +15,11 @@ OUTPUT FORMAT:
 FIELDS:
 - "speaker": Character name in UPPERCASE (use "NARRATOR" only for third-person descriptions)
 - "text": The spoken text, with bracketed non-verbal sounds where appropriate
-- "style": Brief delivery direction (2-5 words like "warm, nostalgic" or "cold, threatening")
+- "style": Acting direction for the voice actor. Describe HOW to deliver the line - voice quality, pacing, emphasis, emotional undertone. Examples:
+  - "Speak with voice trembling slightly, holding onto something slipping away. Emphasize 'keep' with rising intensity."
+  - "Deliver slowly with quiet menace, letting each word land with weight."
+  - "Bright and eager, words tumbling out quickly with barely contained excitement."
+  - "Flat and hollow, as if emotionally drained. Minimal inflection."
 
 NON-VERBAL SOUNDS - Include where emotionally appropriate:
 [sighs], [laughs], [chuckles], [giggles], [scoffs], [gasps], [groans], [moans],
@@ -29,7 +33,9 @@ RULES:
 2. Break long passages into chunks under 400 characters each
 3. SPLIT ON TONE CHANGES: Create separate entries when emotional tone shifts
 4. Always output COMPLETE sentences
-5. Output ONLY valid JSON array - no markdown, no code blocks"""
+5. Output ONLY valid JSON array - no markdown, no code blocks
+6. STYLE should be a detailed acting direction (1-2 sentences) describing voice quality, pacing, emphasis, and emotional undertone
+7. EMOTIONAL CONTINUITY: Keep style directions consistent within a scene. If a character is distressed, maintain that emotional thread across their lines until something in the text justifies a shift. Avoid jarring tonal whiplash between consecutive lines."""
 
 USER_PROMPT_TEMPLATE = """Convert this text into an audioplay script JSON array:
 
