@@ -11,13 +11,21 @@ module.exports = {
         type: "text",
         placeholder: "Hello, this is a sample of my voice...",
         required: true
+      }, {
+        key: "seed",
+        title: "Voice Seed (Optional)",
+        description: "Set a consistent seed for reproducible voice output. Use -1 for random, or any positive integer for consistent results.",
+        type: "text",
+        default: "-1",
+        required: false
       }]
     }
   }, {
-    // Save ref_text to local variable before filepicker overwrites input
+    // Save form values to local variables before filepicker overwrites input
     method: "local.set",
     params: {
-      ref_text: "{{input.ref_text}}"
+      ref_text: "{{input.ref_text}}",
+      seed: "{{input.seed || '-1'}}"
     }
   }, {
     method: "filepicker.open",
@@ -31,7 +39,8 @@ module.exports = {
     params: {
       "voice_config.json": {
         "{{args.speaker}}.ref_audio": "{{input.paths[0]}}",
-        "{{args.speaker}}.ref_text": "{{local.ref_text}}"
+        "{{args.speaker}}.ref_text": "{{local.ref_text}}",
+        "{{args.speaker}}.seed": "{{local.seed}}"
       }
     }
   }]

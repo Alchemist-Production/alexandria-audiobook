@@ -17,6 +17,7 @@ def test_tts_connection(tts_url, voice_config):
     voice_data = voice_config[speaker]
     ref_audio_path = voice_data.get("ref_audio")
     ref_text = voice_data.get("ref_text")
+    seed = int(voice_data.get("seed", -1))
 
     if not os.path.exists(ref_audio_path):
         print(f"Error: Reference audio file not found: {ref_audio_path}")
@@ -24,6 +25,7 @@ def test_tts_connection(tts_url, voice_config):
 
     print(f"  Reference audio: {ref_audio_path}")
     print(f"  Reference text: {ref_text[:50]}...")
+    print(f"  Seed: {seed}")
 
     try:
         client = Client(tts_url)
@@ -38,7 +40,7 @@ def test_tts_connection(tts_url, voice_config):
             "1.7B",
             200,
             0.0,
-            -1,
+            seed,
             api_name="/generate_voice_clone"
         )
         print(f"  Test successful! Output: {result[0]}")
@@ -60,6 +62,7 @@ def generate_cloned_voice_line(line_text, speaker, voice_config, tts_url, output
 
         ref_audio_path = voice_data.get("ref_audio")
         ref_text = voice_data.get("ref_text")
+        seed = int(voice_data.get("seed", -1))
 
         if not ref_audio_path or not ref_text:
             print(f"Warning: Incomplete voice configuration for speaker '{speaker}'. Skipping line.")
@@ -78,7 +81,7 @@ def generate_cloned_voice_line(line_text, speaker, voice_config, tts_url, output
             "1.7B",
             200,
             0.0,
-            -1,
+            seed,
             api_name="/generate_voice_clone"
         )
 
