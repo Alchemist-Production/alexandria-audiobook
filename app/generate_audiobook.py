@@ -14,6 +14,19 @@ def sanitize_filename(name):
     name = re.sub(r'[^\w\-]', '_', name)
     return name.lower()
 
+def preprocess_text_for_tts(text):
+    """Remove brackets from non-verbal cues so TTS reads them naturally.
+    [laughs] -> laughs
+    [sighs] I'm tired -> sighs... I'm tired
+    """
+    # Replace bracketed non-verbals with just the word + ellipsis for pacing
+    # e.g., "[laughs]" -> "laughs...", "[sighs] I'm tired" -> "sighs... I'm tired"
+    processed = re.sub(r'\[([^\]]+)\]', r'\1...', text)
+    # Clean up multiple ellipsis or spaces
+    processed = re.sub(r'\.{4,}', '...', processed)
+    processed = re.sub(r'\s+', ' ', processed).strip()
+    return processed
+
 def test_tts_connection(tts_url, voice_config):
     """Test the TTS connection with the first configured voice"""
     print(f"Testing TTS connection to {tts_url}...")
@@ -117,8 +130,11 @@ def generate_custom_voice(text, style, speaker, voice_config, output_path, clien
         if not instruct:
             instruct = "neutral"
 
+        # Preprocess text to handle non-verbal cues naturally
+        processed_text = preprocess_text_for_tts(text)
+
         result = client.predict(
-            text=text,
+            text=processed_text,
             language="Auto",
             speaker=voice,
             instruct=instruct,
