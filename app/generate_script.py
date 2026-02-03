@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import re
 import google.generativeai as genai
 
 SCRIPT_PROMPT = """Convert this book/novel text into an audioplay script as a JSON array.
@@ -31,6 +32,7 @@ RULES:
 4. Break long passages into chunks under 400 characters each
 5. Output ONLY valid JSON - no markdown, no code blocks, no explanations
 6. Preserve the emotional arc of the story
+7. IMPORTANT: Always output COMPLETE sentences. Never truncate text mid-sentence.
 
 EXAMPLE:
 [
@@ -44,23 +46,94 @@ EXAMPLE:
 TEXT TO CONVERT:
 """
 
-def process_chunk(model, chunk):
+def split_into_chunks(text, max_size=3000):
+    """Split text into chunks at paragraph/sentence boundaries."""
+    # First split by paragraphs (double newlines)
+    paragraphs = re.split(r'\n\s*\n', text)
+
+    chunks = []
+    current_chunk = ""
+
+    for para in paragraphs:
+        para = para.strip()
+        if not para:
+            continue
+
+        # If adding this paragraph would exceed max_size
+        if len(current_chunk) + len(para) + 2 > max_size:
+            # If current chunk has content, save it
+            if current_chunk:
+                chunks.append(current_chunk.strip())
+                current_chunk = ""
+
+            # If single paragraph is too long, split by sentences
+            if len(para) > max_size:
+                sentences = re.split(r'(?<=[.!?])\s+', para)
+                for sentence in sentences:
+                    if len(current_chunk) + len(sentence) + 1 > max_size:
+                        if current_chunk:
+                            chunks.append(current_chunk.strip())
+                        current_chunk = sentence
+                    else:
+                        current_chunk += " " + sentence if current_chunk else sentence
+            else:
+                current_chunk = para
+        else:
+            current_chunk += "\n\n" + para if current_chunk else para
+
+    # Don't forget the last chunk
+    if current_chunk:
+        chunks.append(current_chunk.strip())
+
+    return chunks
+
+def process_chunk(model, chunk, chunk_num, total_chunks):
     """Process a text chunk and return JSON script entries"""
-    response = model.generate_content(SCRIPT_PROMPT + chunk)
+    # Add context about chunk position to help LLM
+    context = ""
+    if chunk_num == 1:
+        context = "(This is the beginning of the text)\n\n"
+    elif chunk_num == total_chunks:
+        context = "(This is the end of the text)\n\n"
+    else:
+        context = f"(This is part {chunk_num} of {total_chunks}, continue from previous context)\n\n"
+
+    response = model.generate_content(SCRIPT_PROMPT + context + chunk)
     text = response.text.strip()
 
     # Clean up markdown code blocks if present
     if text.startswith("```"):
         lines = text.split("\n")
-        text = "\n".join(lines[1:-1] if lines[-1].startswith("```") else lines[1:])
+        # Find the closing ``` and remove both markers
+        end_idx = -1
+        for i, line in enumerate(lines[1:], 1):
+            if line.strip().startswith("```"):
+                end_idx = i
+                break
+        if end_idx > 0:
+            text = "\n".join(lines[1:end_idx])
+        else:
+            text = "\n".join(lines[1:])
 
     try:
         entries = json.loads(text)
         if isinstance(entries, list):
             return entries
-    except json.JSONDecodeError:
-        print(f"Warning: Could not parse chunk response as JSON")
-        print(f"Response preview: {text[:200]}...")
+    except json.JSONDecodeError as e:
+        print(f"Warning: Could not parse chunk {chunk_num} response as JSON: {e}")
+        print(f"Response preview: {text[:300]}...")
+
+        # Try to salvage partial JSON
+        try:
+            # Find the last complete entry by looking for the last "},"
+            last_complete = text.rfind('},')
+            if last_complete > 0:
+                salvaged = text[:last_complete+1] + ']'
+                entries = json.loads(salvaged)
+                print(f"Salvaged {len(entries)} entries from partial response")
+                return entries
+        except:
+            pass
 
     return []
 
@@ -104,16 +177,17 @@ def main():
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel(model_name)
 
-    # Process in chunks to handle long texts
+    # Split into chunks at natural boundaries
+    chunks = split_into_chunks(book_content, max_size=3000)
+    total_chunks = len(chunks)
+
+    print(f"Split into {total_chunks} chunks at paragraph/sentence boundaries")
+
     all_entries = []
-    chunk_size = 4096
-    total_chunks = (len(book_content) + chunk_size - 1) // chunk_size
+    for i, chunk in enumerate(chunks, 1):
+        print(f"Processing chunk {i}/{total_chunks} ({len(chunk)} chars)...")
 
-    for i, start in enumerate(range(0, len(book_content), chunk_size)):
-        chunk = book_content[start:start + chunk_size]
-        print(f"Processing chunk {i+1}/{total_chunks} ({len(chunk)} chars)...")
-
-        entries = process_chunk(model, chunk)
+        entries = process_chunk(model, chunk, i, total_chunks)
         all_entries.extend(entries)
         print(f"  Got {len(entries)} entries")
 
