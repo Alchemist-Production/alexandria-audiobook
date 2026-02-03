@@ -91,16 +91,27 @@ def split_into_chunks(text, max_size=3000):
 
     return chunks
 
-def process_chunk(model, chunk, chunk_num, total_chunks):
+def process_chunk(model, chunk, chunk_num, total_chunks, previous_entries=None):
     """Process a text chunk and return JSON script entries"""
-    # Add context about chunk position to help LLM
-    context = ""
+    # Add context about chunk position and previous speakers to help LLM
+    context_parts = []
+
     if chunk_num == 1:
-        context = "(This is the beginning of the text)\n\n"
+        context_parts.append("(This is the beginning of the text)")
     elif chunk_num == total_chunks:
-        context = "(This is the end of the text)\n\n"
+        context_parts.append("(This is the end of the text)")
     else:
-        context = f"(This is part {chunk_num} of {total_chunks}, continue from previous context)\n\n"
+        context_parts.append(f"(This is part {chunk_num} of {total_chunks})")
+
+    # Add previous entries as context so LLM knows who was speaking
+    if previous_entries and len(previous_entries) > 0:
+        # Take last 3-5 entries to show recent context
+        recent = previous_entries[-5:]
+        context_parts.append("\nPREVIOUS ENTRIES (for speaker continuity - do NOT repeat these, continue from here):")
+        context_parts.append(json.dumps(recent, indent=2))
+        context_parts.append("\nContinue the script from where the previous entries left off:\n")
+
+    context = "\n".join(context_parts) + "\n\n"
 
     response = model.generate_content(SCRIPT_PROMPT + context + chunk)
     text = response.text.strip()
@@ -191,7 +202,9 @@ def main():
     for i, chunk in enumerate(chunks, 1):
         print(f"Processing chunk {i}/{total_chunks} ({len(chunk)} chars)...")
 
-        entries = process_chunk(model, chunk, i, total_chunks)
+        # Pass previous entries for speaker continuity context
+        previous = all_entries if len(all_entries) > 0 else None
+        entries = process_chunk(model, chunk, i, total_chunks, previous_entries=previous)
         all_entries.extend(entries)
         print(f"  Got {len(entries)} entries")
 
