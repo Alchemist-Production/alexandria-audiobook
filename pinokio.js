@@ -15,6 +15,7 @@ module.exports = {
       generate_script: info.running("generate_script.js"),
       parse_voices: info.running("parse_voices.js"),
       configure_voice: info.running("configure_voice.js"),
+      configure_voice_clone: info.running("configure_voice_clone.js"),
       generate_audiobook: info.running("generate_audiobook.js"),
       reset: info.running("reset.js"),
       update: info.running("update.js")
@@ -67,10 +68,11 @@ module.exports = {
       }
     }
 
-    // Find unconfigured voices (now using custom voice, just need voice name)
+    // Find unconfigured voices (check for type field which indicates configured)
     unconfiguredVoices = voices.filter(voice => {
       const config = configuredVoices[voice]
-      return !config || !config.voice
+      // Voice is configured if it has a type (custom or clone)
+      return !config || !config.type
     })
 
     // Handle running states first (show terminal with default: true)
@@ -123,8 +125,17 @@ module.exports = {
       return [{
         default: true,
         icon: "fa-solid fa-microphone",
-        text: "Configuring Voice",
+        text: "Configuring Custom Voice",
         href: "configure_voice.js"
+      }]
+    }
+
+    if (running.configure_voice_clone) {
+      return [{
+        default: true,
+        icon: "fa-solid fa-clone",
+        text: "Configuring Clone Voice",
+        href: "configure_voice_clone.js"
       }]
     }
 
@@ -264,12 +275,20 @@ module.exports = {
         text: `${unconfiguredVoices.length} voice(s) need configuration`
       })
 
-      // Add menu item for each unconfigured voice
+      // Add menu items for each unconfigured voice (both custom and clone options)
       unconfiguredVoices.forEach(voice => {
         menu.push({
           icon: "fa-solid fa-microphone",
-          text: `Configure: ${voice}`,
+          text: `Custom Voice: ${voice}`,
           href: "configure_voice.js",
+          params: {
+            speaker: voice
+          }
+        })
+        menu.push({
+          icon: "fa-solid fa-clone",
+          text: `Clone Voice: ${voice}`,
+          href: "configure_voice_clone.js",
           params: {
             speaker: voice
           }
