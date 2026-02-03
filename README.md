@@ -13,6 +13,7 @@ Transform any book or novel into a fully-voiced audiobook using AI-powered scrip
 - **Smart Chunking** - Groups consecutive lines by speaker (up to 500 chars) for natural flow
 - **Natural Pauses** - Automatic delays between speakers and segments
 - **Reproducible Output** - Optional per-voice seed for consistent generation
+- **Audioplay Export** - Individual voiceline files for audio editing (Audacity, etc.)
 
 ## Requirements
 
@@ -45,7 +46,20 @@ Transform any book or novel into a fully-voiced audiobook using AI-powered scrip
 
 ## Output
 
-The generated audiobook is saved as `cloned_audiobook.mp3` in the project root.
+**Combined Audiobook:**
+- `cloned_audiobook.mp3` - Full audiobook with natural pauses
+
+**Individual Voicelines (for audio editing):**
+- `voicelines/voiceline_0001_narrator.mp3`
+- `voicelines/voiceline_0002_character_a.mp3`
+- `voicelines/voiceline_0003_narrator.mp3`
+- ...
+
+Files are numbered in timeline order and include the speaker name, making it easy to:
+- Import into Audacity or other DAWs
+- Place each character on separate tracks
+- Color-code by speaker
+- Fine-tune timing and effects
 
 ## License
 

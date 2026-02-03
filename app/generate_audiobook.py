@@ -1,4 +1,5 @@
 import os
+import re
 import json
 from pydub import AudioSegment
 from gradio_client import Client, handle_file
@@ -7,6 +8,12 @@ import shutil
 MAX_CHUNK_CHARS = 500
 DEFAULT_PAUSE_MS = 500  # Pause between different speakers
 SAME_SPEAKER_PAUSE_MS = 250  # Shorter pause for same speaker continuing
+
+def sanitize_filename(name):
+    """Make a string safe for use in filenames"""
+    # Replace spaces with underscores, remove special chars
+    name = re.sub(r'[^\w\-]', '_', name)
+    return name.lower()
 
 def test_tts_connection(tts_url, voice_config):
     """Test the TTS connection with the first configured voice"""
@@ -200,21 +207,34 @@ def main():
 
     audio_segments = []
     chunk_speakers = []
-    output_dir = "output_audio_cloned"
-    os.makedirs(output_dir, exist_ok=True)
+
+    # Temp directory for WAV files during processing
+    temp_dir = "output_audio_cloned"
+    os.makedirs(temp_dir, exist_ok=True)
+
+    # Output directory for individual voiceline MP3s (in project root)
+    voicelines_dir = "../voicelines"
+    os.makedirs(voicelines_dir, exist_ok=True)
 
     successful = 0
     failed = 0
 
     for i, (speaker, chunk_text) in enumerate(chunks):
-        output_path = os.path.join(output_dir, f"chunk_{i}.wav")
+        temp_path = os.path.join(temp_dir, f"chunk_{i}.wav")
         preview = chunk_text[:60] + "..." if len(chunk_text) > 60 else chunk_text
         print(f"[{i+1}/{len(chunks)}] {speaker} ({len(chunk_text)} chars): '{preview}'")
 
-        if generate_cloned_voice_chunk(chunk_text, speaker, voice_config, output_path, client):
+        if generate_cloned_voice_chunk(chunk_text, speaker, voice_config, temp_path, client):
             try:
-                audio_segments.append(AudioSegment.from_wav(output_path))
+                segment = AudioSegment.from_wav(temp_path)
+                audio_segments.append(segment)
                 chunk_speakers.append(speaker)
+
+                # Export individual voiceline as MP3 with format: voiceline_0001_character.mp3
+                voiceline_filename = f"voiceline_{i+1:04d}_{sanitize_filename(speaker)}.mp3"
+                voiceline_path = os.path.join(voicelines_dir, voiceline_filename)
+                segment.export(voiceline_path, format="mp3")
+
                 successful += 1
             except Exception as e:
                 print(f"  Could not process audio file: {e}")
@@ -229,6 +249,12 @@ def main():
         print("No audio segments were generated. Exiting.")
         return
 
+    # List unique speakers for Audacity track reference
+    unique_speakers = sorted(set(chunk_speakers))
+    print(f"\nSpeakers ({len(unique_speakers)}): {', '.join(unique_speakers)}")
+    print(f"Individual voicelines saved to: {os.path.abspath(voicelines_dir)}/")
+    print(f"  Format: voiceline_NNNN_speaker.mp3 (ordered by timeline)")
+
     print(f"\nCombining {len(audio_segments)} audio segments with pauses...")
     print(f"  Pause between speakers: {DEFAULT_PAUSE_MS}ms")
     print(f"  Pause within same speaker: {SAME_SPEAKER_PAUSE_MS}ms")
@@ -236,7 +262,7 @@ def main():
     final_audio = combine_audio_with_pauses(audio_segments, chunk_speakers)
     output_filename = "../cloned_audiobook.mp3"
     final_audio.export(output_filename, format="mp3")
-    print(f"Audiobook saved as {output_filename}")
+    print(f"Combined audiobook saved as {output_filename}")
 
 
 if __name__ == '__main__':

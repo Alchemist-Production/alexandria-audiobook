@@ -39,5 +39,10 @@ module.exports = {
     params: {
       path: "app/output_audio_cloned"
     }
+  }, {
+    method: "fs.rm",
+    params: {
+      path: "voicelines"
+    }
   }]
 }
