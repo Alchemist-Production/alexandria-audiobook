@@ -9,7 +9,17 @@ module.exports = {
         title: "Voice",
         description: "Select a voice for this character",
         type: "select",
-        options: ["Aiden", "Dylan", "Eric", "Ono_anna", "Ryan", "Serena", "Sohee", "Uncle_fu", "Vivian"],
+        items: [
+          { text: "Aiden", value: "Aiden" },
+          { text: "Dylan", value: "Dylan" },
+          { text: "Eric", value: "Eric" },
+          { text: "Ono_anna", value: "Ono_anna" },
+          { text: "Ryan (default)", value: "Ryan" },
+          { text: "Serena", value: "Serena" },
+          { text: "Sohee", value: "Sohee" },
+          { text: "Uncle_fu", value: "Uncle_fu" },
+          { text: "Vivian", value: "Vivian" }
+        ],
         default: "Ryan",
         required: true
       }, {
