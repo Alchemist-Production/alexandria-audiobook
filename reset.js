@@ -7,7 +7,7 @@ module.exports = {
   }, {
     method: "fs.rm",
     params: {
-      path: "annotated_script.txt"
+      path: "annotated_script.json"
     }
   }, {
     method: "fs.rm",

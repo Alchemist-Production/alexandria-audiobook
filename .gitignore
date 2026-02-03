@@ -11,6 +11,7 @@ app/env/
 state.json
 voice_config.json
 voices.json
+annotated_script.json
 annotated_script.txt
 cloned_audiobook.mp3
 voicelines/

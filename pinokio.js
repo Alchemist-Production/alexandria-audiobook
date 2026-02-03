@@ -24,7 +24,7 @@ module.exports = {
     let installed = info.exists("app/env")
     let configured = info.exists("app/config.json")
     let hasState = info.exists("state.json")
-    let hasScript = info.exists("annotated_script.txt")
+    let hasScript = info.exists("annotated_script.json")
     let hasVoices = info.exists("voices.json")
     let hasVoiceConfig = info.exists("voice_config.json")
     let hasAudiobook = info.exists("cloned_audiobook.mp3")
@@ -67,10 +67,10 @@ module.exports = {
       }
     }
 
-    // Find unconfigured voices
+    // Find unconfigured voices (now using custom voice, just need voice name)
     unconfiguredVoices = voices.filter(voice => {
       const config = configuredVoices[voice]
-      return !config || !config.ref_audio || !config.ref_text
+      return !config || !config.voice
     })
 
     // Handle running states first (show terminal with default: true)
@@ -322,8 +322,8 @@ module.exports = {
       href: "cloned_audiobook.mp3"
     }, {
       icon: "fa-solid fa-folder-open",
-      text: "Open Output Folder",
-      href: "app/output_audio_cloned"
+      text: "Open Voicelines Folder",
+      href: "voicelines"
     }, {
       icon: "fa-solid fa-headphones",
       text: "Regenerate Audiobook",

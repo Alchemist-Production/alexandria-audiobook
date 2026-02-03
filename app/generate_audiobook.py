@@ -2,7 +2,7 @@ import os
 import re
 import json
 from pydub import AudioSegment
-from gradio_client import Client, handle_file
+from gradio_client import Client
 import shutil
 
 MAX_CHUNK_CHARS = 500
@@ -11,7 +11,6 @@ SAME_SPEAKER_PAUSE_MS = 250  # Shorter pause for same speaker continuing
 
 def sanitize_filename(name):
     """Make a string safe for use in filenames"""
-    # Replace spaces with underscores, remove special chars
     name = re.sub(r'[^\w\-]', '_', name)
     return name.lower()
 
@@ -19,130 +18,118 @@ def test_tts_connection(tts_url, voice_config):
     """Test the TTS connection with the first configured voice"""
     print(f"Testing TTS connection to {tts_url}...")
 
-    # Get first configured voice
     speaker = list(voice_config.keys())[0] if voice_config else None
     if not speaker:
         print("Error: No voices configured in voice_config.json")
         return False
 
     voice_data = voice_config[speaker]
-    ref_audio_path = voice_data.get("ref_audio")
-    ref_text = voice_data.get("ref_text")
+    voice = voice_data.get("voice", "Ryan")
     seed = int(voice_data.get("seed", -1))
 
-    if not os.path.exists(ref_audio_path):
-        print(f"Error: Reference audio file not found: {ref_audio_path}")
-        return False
-
-    print(f"  Reference audio: {ref_audio_path}")
-    print(f"  Reference text: {ref_text[:50]}...")
+    print(f"  Voice: {voice}")
     print(f"  Seed: {seed}")
 
     try:
         client = Client(tts_url)
 
-        # Try a short test phrase
         result = client.predict(
-            handle_file(ref_audio_path),
-            ref_text,
-            "Testing, one two three.",  # short test phrase
-            "Auto",
-            False,
-            "1.7B",
-            200,
-            0.0,
-            seed,
-            api_name="/generate_voice_clone"
+            text="Testing, one two three.",
+            language="Auto",
+            speaker=voice,
+            instruct="neutral, clear",
+            model_size="1.7B",
+            seed=seed,
+            api_name="/generate_custom_voice"
         )
         print(f"  Test successful! Output: {result[0]}")
         return True
     except Exception as e:
         print(f"  TTS Test FAILED: {e}")
         print("\nTroubleshooting tips:")
-        print("  1. Make sure the TTS model is loaded in the Gradio UI")
-        print("  2. Try generating audio manually in the TTS web interface first")
-        print("  3. Check if the reference audio file is accessible")
+        print("  1. Make sure the TTS server is running")
+        print("  2. Check if the CustomVoice model is loaded")
         return False
 
-def parse_lines(lines):
-    """Parse lines into (speaker, text) tuples"""
-    parsed = []
-    for line in lines:
-        if ':' not in line:
-            continue
-        speaker, text = line.split(':', 1)
-        speaker = speaker.strip().replace('*', '').replace('#', '')
-        text = text.strip()
-        if speaker and text:
-            parsed.append((speaker, text))
-    return parsed
-
-def group_into_chunks(parsed_lines, max_chars=MAX_CHUNK_CHARS):
-    """Group consecutive lines by same speaker into chunks up to max_chars"""
-    if not parsed_lines:
+def group_into_chunks(script_entries, max_chars=MAX_CHUNK_CHARS):
+    """Group consecutive entries by same speaker into chunks up to max_chars"""
+    if not script_entries:
         return []
 
     chunks = []
-    current_speaker = parsed_lines[0][0]
-    current_text = parsed_lines[0][1]
+    current_speaker = script_entries[0].get("speaker")
+    current_text = script_entries[0].get("text", "")
+    current_style = script_entries[0].get("style", "")
 
-    for speaker, text in parsed_lines[1:]:
+    for entry in script_entries[1:]:
+        speaker = entry.get("speaker")
+        text = entry.get("text", "")
+        style = entry.get("style", "")
+
         if speaker == current_speaker:
-            # Same speaker - try to add to current chunk
             combined = current_text + " " + text
             if len(combined) <= max_chars:
                 current_text = combined
+                # Keep the more specific style if available
+                if style and not current_style:
+                    current_style = style
             else:
-                # Chunk would be too long, save current and start new
-                chunks.append((current_speaker, current_text))
+                chunks.append({
+                    "speaker": current_speaker,
+                    "text": current_text,
+                    "style": current_style
+                })
                 current_text = text
+                current_style = style
         else:
-            # Different speaker - save current chunk and start new
-            chunks.append((current_speaker, current_text))
+            chunks.append({
+                "speaker": current_speaker,
+                "text": current_text,
+                "style": current_style
+            })
             current_speaker = speaker
             current_text = text
+            current_style = style
 
     # Don't forget the last chunk
-    chunks.append((current_speaker, current_text))
+    chunks.append({
+        "speaker": current_speaker,
+        "text": current_text,
+        "style": current_style
+    })
 
     return chunks
 
-def generate_cloned_voice_chunk(chunk_text, speaker, voice_config, output_path, client):
-    """Generate audio for a text chunk using voice cloning"""
+def generate_custom_voice(text, style, speaker, voice_config, output_path, client):
+    """Generate audio using CustomVoice model"""
     try:
         voice_data = voice_config.get(speaker)
         if not voice_data:
-            print(f"Warning: No voice configuration found for speaker '{speaker}'. Skipping.")
+            print(f"Warning: No voice configuration for '{speaker}'. Skipping.")
             return False
 
-        ref_audio_path = voice_data.get("ref_audio")
-        ref_text = voice_data.get("ref_text")
+        voice = voice_data.get("voice", "Ryan")
+        default_style = voice_data.get("default_style", "")
         seed = int(voice_data.get("seed", -1))
 
-        if not ref_audio_path or not ref_text:
-            print(f"Warning: Incomplete voice configuration for speaker '{speaker}'. Skipping.")
-            return False
-
-        if not os.path.exists(ref_audio_path):
-            print(f"Warning: Reference audio file not found: {ref_audio_path}. Skipping.")
-            return False
+        # Use per-line style if available, otherwise fall back to default
+        instruct = style if style else default_style
+        if not instruct:
+            instruct = "neutral"
 
         result = client.predict(
-            handle_file(ref_audio_path),
-            ref_text,
-            chunk_text,
-            "Auto",
-            False,
-            "1.7B",
-            200,
-            0.0,
-            seed,
-            api_name="/generate_voice_clone"
+            text=text,
+            language="Auto",
+            speaker=voice,
+            instruct=instruct,
+            model_size="1.7B",
+            seed=seed,
+            api_name="/generate_custom_voice"
         )
 
         generated_audio_filepath = result[0]
         if not generated_audio_filepath or not os.path.exists(generated_audio_filepath):
-            print(f"Error: No audio file generated for: '{chunk_text[:50]}...'")
+            print(f"Error: No audio file generated for: '{text[:50]}...'")
             return False
 
         shutil.copy(generated_audio_filepath, output_path)
@@ -163,7 +150,7 @@ def combine_audio_with_pauses(audio_segments, speakers, pause_ms=DEFAULT_PAUSE_M
     combined = audio_segments[0]
     prev_speaker = speakers[0]
 
-    for i, (segment, speaker) in enumerate(zip(audio_segments[1:], speakers[1:]), 1):
+    for segment, speaker in zip(audio_segments[1:], speakers[1:]):
         if speaker == prev_speaker:
             combined += silence_same_speaker + segment
         else:
@@ -173,7 +160,7 @@ def combine_audio_with_pauses(audio_segments, speakers, pause_ms=DEFAULT_PAUSE_M
     return combined
 
 def main():
-    # Load configurations (config.json is in app/, voice_config.json is in project root)
+    # Load configurations
     with open("config.json", "r") as f:
         config = json.load(f)
 
@@ -185,52 +172,52 @@ def main():
         print("Error: TTS URL not found in config.json")
         return
 
-    # Test TTS connection first
+    # Test TTS connection
     if not test_tts_connection(tts_url, voice_config):
         print("\nAborting: TTS connection test failed.")
-        print("Please ensure the TTS server is running and the model is loaded.")
         return
 
-    # Create client once and reuse
     print(f"\nConnecting to TTS server at {tts_url}...")
     client = Client(tts_url)
 
-    # Read the annotated script (in project root)
-    with open("../annotated_script.txt", "r") as f:
-        lines = [line.strip() for line in f.readlines() if line.strip()]
+    # Read the JSON script
+    with open("../annotated_script.json", "r", encoding="utf-8") as f:
+        script_entries = json.load(f)
 
-    # Parse lines and group into chunks
-    parsed_lines = parse_lines(lines)
-    chunks = group_into_chunks(parsed_lines, MAX_CHUNK_CHARS)
+    # Group into chunks
+    chunks = group_into_chunks(script_entries, MAX_CHUNK_CHARS)
 
-    print(f"Parsed {len(parsed_lines)} lines into {len(chunks)} chunks (max {MAX_CHUNK_CHARS} chars each)\n")
+    print(f"Loaded {len(script_entries)} script entries, grouped into {len(chunks)} chunks\n")
 
     audio_segments = []
     chunk_speakers = []
 
-    # Temp directory for WAV files during processing
     temp_dir = "output_audio_cloned"
     os.makedirs(temp_dir, exist_ok=True)
 
-    # Output directory for individual voiceline MP3s (in project root)
     voicelines_dir = "../voicelines"
     os.makedirs(voicelines_dir, exist_ok=True)
 
     successful = 0
     failed = 0
 
-    for i, (speaker, chunk_text) in enumerate(chunks):
-        temp_path = os.path.join(temp_dir, f"chunk_{i}.wav")
-        preview = chunk_text[:60] + "..." if len(chunk_text) > 60 else chunk_text
-        print(f"[{i+1}/{len(chunks)}] {speaker} ({len(chunk_text)} chars): '{preview}'")
+    for i, chunk in enumerate(chunks):
+        speaker = chunk["speaker"]
+        text = chunk["text"]
+        style = chunk["style"]
 
-        if generate_cloned_voice_chunk(chunk_text, speaker, voice_config, temp_path, client):
+        temp_path = os.path.join(temp_dir, f"chunk_{i}.wav")
+        preview = text[:60] + "..." if len(text) > 60 else text
+        style_preview = f" [{style}]" if style else ""
+        print(f"[{i+1}/{len(chunks)}] {speaker}{style_preview} ({len(text)} chars): '{preview}'")
+
+        if generate_custom_voice(text, style, speaker, voice_config, temp_path, client):
             try:
                 segment = AudioSegment.from_wav(temp_path)
                 audio_segments.append(segment)
                 chunk_speakers.append(speaker)
 
-                # Export individual voiceline as MP3 with format: voiceline_0001_character.mp3
+                # Export individual voiceline
                 voiceline_filename = f"voiceline_{i+1:04d}_{sanitize_filename(speaker)}.mp3"
                 voiceline_path = os.path.join(voicelines_dir, voiceline_filename)
                 segment.export(voiceline_path, format="mp3")
@@ -249,11 +236,9 @@ def main():
         print("No audio segments were generated. Exiting.")
         return
 
-    # List unique speakers for Audacity track reference
     unique_speakers = sorted(set(chunk_speakers))
     print(f"\nSpeakers ({len(unique_speakers)}): {', '.join(unique_speakers)}")
     print(f"Individual voicelines saved to: {os.path.abspath(voicelines_dir)}/")
-    print(f"  Format: voiceline_NNNN_speaker.mp3 (ordered by timeline)")
 
     print(f"\nCombining {len(audio_segments)} audio segments with pauses...")
     print(f"  Pause between speakers: {DEFAULT_PAUSE_MS}ms")
