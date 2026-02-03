@@ -251,8 +251,72 @@ def generate_custom_voice(text, style, speaker, voice_config, output_path, clien
         return True
 
     except Exception as e:
-        print(f"Error generating voice for '{speaker}': {e}")
+        print(f"Error generating custom voice for '{speaker}': {e}")
         return False
+
+def generate_clone_voice(text, speaker, voice_config, output_path, client):
+    """Generate audio using voice cloning from reference audio"""
+    try:
+        voice_data = voice_config.get(speaker)
+        if not voice_data:
+            print(f"Warning: No voice configuration for '{speaker}'. Skipping.")
+            return False
+
+        ref_audio = voice_data.get("ref_audio")
+        ref_text = voice_data.get("ref_text")
+        seed = int(voice_data.get("seed", -1))
+
+        if not ref_audio or not ref_text:
+            print(f"Warning: Clone voice for '{speaker}' missing ref_audio or ref_text. Skipping.")
+            return False
+
+        if not os.path.exists(ref_audio):
+            print(f"Warning: Reference audio not found for '{speaker}': {ref_audio}")
+            return False
+
+        # Preprocess text (strip non-verbals but don't use style since clone doesn't support it)
+        processed_text, _ = preprocess_text_for_tts(text)
+
+        result = client.predict(
+            ref_audio,           # Reference audio file path
+            ref_text,            # Transcript of reference audio
+            processed_text,      # Text to generate
+            "Auto",              # Language detection
+            False,               # use_xvector_only
+            "1.7B",              # Model size
+            200,                 # max_chunk_chars
+            0,                   # chunk_gap
+            seed,                # seed
+            api_name="/generate_voice_clone"
+        )
+
+        generated_audio_filepath = result[0]
+        if not generated_audio_filepath or not os.path.exists(generated_audio_filepath):
+            print(f"Error: No audio file generated for: '{text[:50]}...'")
+            return False
+
+        shutil.copy(generated_audio_filepath, output_path)
+        return True
+
+    except Exception as e:
+        print(f"Error generating clone voice for '{speaker}': {e}")
+        return False
+
+def generate_voice(text, style, speaker, voice_config, output_path, client):
+    """Generate audio using either custom voice or clone voice based on config"""
+    voice_data = voice_config.get(speaker)
+    if not voice_data:
+        print(f"Warning: No voice configuration for '{speaker}'. Skipping.")
+        return False
+
+    voice_type = voice_data.get("type", "custom")
+
+    if voice_type == "clone":
+        # Clone voice ignores style
+        return generate_clone_voice(text, speaker, voice_config, output_path, client)
+    else:
+        # Custom voice uses style directions
+        return generate_custom_voice(text, style, speaker, voice_config, output_path, client)
 
 def combine_audio_with_pauses(audio_segments, speakers, pause_ms=DEFAULT_PAUSE_MS, same_speaker_pause_ms=SAME_SPEAKER_PAUSE_MS):
     """Combine audio segments with pauses between them"""
@@ -326,7 +390,7 @@ def main():
         style_preview = f" [{style}]" if style else ""
         print(f"[{i+1}/{len(chunks)}] {speaker}{style_preview} ({len(text)} chars): '{preview}'")
 
-        if generate_custom_voice(text, style, speaker, voice_config, temp_path, client):
+        if generate_voice(text, style, speaker, voice_config, temp_path, client):
             try:
                 segment = AudioSegment.from_wav(temp_path)
                 audio_segments.append(segment)

@@ -2,8 +2,8 @@ module.exports = {
   run: [{
     method: "input",
     params: {
-      title: "Configure Voice: {{args.speaker}}",
-      description: "Select a voice and set the default style for this character. The style can be overridden per-line in the script.",
+      title: "Custom Voice: {{args.speaker}}",
+      description: "Use a pre-trained voice with style direction. The style from the script will control emotional delivery.",
       form: [{
         key: "voice",
         title: "Voice",
@@ -42,6 +42,7 @@ module.exports = {
     method: "json.set",
     params: {
       "voice_config.json": {
+        "{{args.speaker}}.type": "custom",
         "{{args.speaker}}.voice": "{{input.voice}}",
         "{{args.speaker}}.default_style": "{{input.default_style || ''}}",
         "{{args.speaker}}.seed": "{{input.seed || '-1'}}"
