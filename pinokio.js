@@ -10,72 +10,14 @@ module.exports = {
     // Check running states
     let running = {
       install: info.running("install.js"),
-      configure: info.running("configure.js"),
-      select_input_file: info.running("select_input_file.js"),
-      generate_script: info.running("generate_script.js"),
-      parse_voices: info.running("parse_voices.js"),
-      configure_voice: info.running("configure_voice.js"),
-      configure_voice_clone: info.running("configure_voice_clone.js"),
-      generate_audiobook: info.running("generate_audiobook.js"),
-      reset: info.running("reset.js"),
-      update: info.running("update.js")
+      start: info.running("start.js"),
+      reset: info.running("reset.js")
     }
 
     // Check file existence states
     let installed = info.exists("app/env")
-    let configured = info.exists("app/config.json")
-    let hasState = info.exists("state.json")
-    let hasScript = info.exists("annotated_script.json")
-    let hasVoices = info.exists("voices.json")
-    let hasVoiceConfig = info.exists("voice_config.json")
-    let hasAudiobook = info.exists("cloned_audiobook.mp3")
 
-    // Read state.json for input file path
-    let inputFilePath = null
-    if (hasState) {
-      try {
-        const statePath = path.join(__dirname, "state.json")
-        const stateContent = fs.readFileSync(statePath, 'utf8')
-        const state = JSON.parse(stateContent)
-        inputFilePath = state.input_file_path
-      } catch (e) {
-        // Ignore parse errors
-      }
-    }
-
-    // Read voices.json and voice_config.json to find unconfigured voices
-    let voices = []
-    let configuredVoices = {}
-    let unconfiguredVoices = []
-
-    if (hasVoices) {
-      try {
-        const voicesPath = path.join(__dirname, "voices.json")
-        const voicesContent = fs.readFileSync(voicesPath, 'utf8')
-        voices = JSON.parse(voicesContent)
-      } catch (e) {
-        // Ignore parse errors
-      }
-    }
-
-    if (hasVoiceConfig) {
-      try {
-        const voiceConfigPath = path.join(__dirname, "voice_config.json")
-        const voiceConfigContent = fs.readFileSync(voiceConfigPath, 'utf8')
-        configuredVoices = JSON.parse(voiceConfigContent)
-      } catch (e) {
-        // Ignore parse errors
-      }
-    }
-
-    // Find unconfigured voices (check for type field which indicates configured)
-    unconfiguredVoices = voices.filter(voice => {
-      const config = configuredVoices[voice]
-      // Voice is configured if it has a type (custom or clone)
-      return !config || !config.type
-    })
-
-    // Handle running states first (show terminal with default: true)
+    // Handle running states first
     if (running.install) {
       return [{
         default: true,
@@ -85,66 +27,12 @@ module.exports = {
       }]
     }
 
-    if (running.configure) {
+    if (running.start) {
       return [{
         default: true,
-        icon: "fa-solid fa-wrench",
-        text: "Configuring",
-        href: "configure.js"
-      }]
-    }
-
-    if (running.select_input_file) {
-      return [{
-        default: true,
-        icon: "fa-solid fa-file",
-        text: "Selecting File",
-        href: "select_input_file.js"
-      }]
-    }
-
-    if (running.generate_script) {
-      return [{
-        default: true,
-        icon: "fa-solid fa-scroll",
-        text: "Generating Script",
-        href: "generate_script.js"
-      }]
-    }
-
-    if (running.parse_voices) {
-      return [{
-        default: true,
-        icon: "fa-solid fa-users",
-        text: "Parsing Voices",
-        href: "parse_voices.js"
-      }]
-    }
-
-    if (running.configure_voice) {
-      return [{
-        default: true,
-        icon: "fa-solid fa-microphone",
-        text: "Configuring Custom Voice",
-        href: "configure_voice.js"
-      }]
-    }
-
-    if (running.configure_voice_clone) {
-      return [{
-        default: true,
-        icon: "fa-solid fa-clone",
-        text: "Configuring Clone Voice",
-        href: "configure_voice_clone.js"
-      }]
-    }
-
-    if (running.generate_audiobook) {
-      return [{
-        default: true,
-        icon: "fa-solid fa-headphones",
-        text: "Generating Audiobook",
-        href: "generate_audiobook.js"
+        icon: "fa-solid fa-power-off",
+        text: "Running",
+        href: "start.js"
       }]
     }
 
@@ -154,15 +42,6 @@ module.exports = {
         icon: "fa-solid fa-rotate-left",
         text: "Resetting",
         href: "reset.js"
-      }]
-    }
-
-    if (running.update) {
-      return [{
-        default: true,
-        icon: "fa-solid fa-arrows-rotate",
-        text: "Updating",
-        href: "update.js"
       }]
     }
 
@@ -176,181 +55,16 @@ module.exports = {
       }]
     }
 
-    // STATE: NOT_CONFIGURED
-    if (!configured) {
-      return [{
-        icon: "fa-solid fa-wrench",
-        text: "Configure Alexandria",
-        href: "configure.js"
-      }, {
-        icon: "fa-solid fa-plug",
-        text: "Reinstall",
-        href: "install.js"
-      }, {
-        icon: "fa-solid fa-rotate-left",
-        text: "Reset",
-        href: "reset.js"
-      }]
-    }
-
-    // STATE: NO_INPUT_FILE
-    if (!inputFilePath) {
-      return [{
-        icon: "fa-solid fa-file-import",
-        text: "Select Input File",
-        href: "select_input_file.js"
-      }, {
-        icon: "fa-solid fa-wrench",
-        text: "Reconfigure",
-        href: "configure.js"
-      }, {
-        icon: "fa-solid fa-plug",
-        text: "Reinstall",
-        href: "install.js"
-      }, {
-        icon: "fa-solid fa-rotate-left",
-        text: "Reset",
-        href: "reset.js"
-      }]
-    }
-
-    // STATE: NO_SCRIPT
-    if (!hasScript) {
-      return [{
-        icon: "fa-solid fa-scroll",
-        text: "Generate Script",
-        href: "generate_script.js",
-        params: {
-          input_file_path: inputFilePath
-        }
-      }, {
-        icon: "fa-solid fa-file-import",
-        text: "Change Input File",
-        href: "select_input_file.js"
-      }, {
-        icon: "fa-solid fa-wrench",
-        text: "Reconfigure",
-        href: "configure.js"
-      }, {
-        icon: "fa-solid fa-plug",
-        text: "Reinstall",
-        href: "install.js"
-      }, {
-        icon: "fa-solid fa-rotate-left",
-        text: "Reset",
-        href: "reset.js"
-      }]
-    }
-
-    // STATE: NO_VOICES_PARSED
-    if (!hasVoices) {
-      return [{
-        icon: "fa-solid fa-users",
-        text: "Parse Voices",
-        href: "parse_voices.js"
-      }, {
-        icon: "fa-solid fa-scroll",
-        text: "Regenerate Script",
-        href: "generate_script.js",
-        params: {
-          input_file_path: inputFilePath
-        }
-      }, {
-        icon: "fa-solid fa-plug",
-        text: "Reinstall",
-        href: "install.js"
-      }, {
-        icon: "fa-solid fa-rotate-left",
-        text: "Reset",
-        href: "reset.js"
-      }]
-    }
-
-    // STATE: VOICES_NOT_CONFIGURED
-    if (unconfiguredVoices.length > 0) {
-      let menu = []
-
-      menu.push({
-        icon: "fa-solid fa-info-circle",
-        text: `${unconfiguredVoices.length} voice(s) need configuration`
-      })
-
-      // Add menu items for each unconfigured voice (both custom and clone options)
-      unconfiguredVoices.forEach(voice => {
-        menu.push({
-          icon: "fa-solid fa-microphone",
-          text: `Custom Voice: ${voice}`,
-          href: "configure_voice.js",
-          params: {
-            speaker: voice
-          }
-        })
-        menu.push({
-          icon: "fa-solid fa-clone",
-          text: `Clone Voice: ${voice}`,
-          href: "configure_voice_clone.js",
-          params: {
-            speaker: voice
-          }
-        })
-      })
-
-      menu.push({
-        icon: "fa-solid fa-users",
-        text: "Re-parse Voices",
-        href: "parse_voices.js"
-      }, {
-        icon: "fa-solid fa-plug",
-        text: "Reinstall",
-        href: "install.js"
-      }, {
-        icon: "fa-solid fa-rotate-left",
-        text: "Reset",
-        href: "reset.js"
-      })
-
-      return menu
-    }
-
-    // STATE: READY_TO_GENERATE
-    if (!hasAudiobook) {
-      return [{
-        icon: "fa-solid fa-headphones",
-        text: "Generate Audiobook",
-        href: "generate_audiobook.js"
-      }, {
-        icon: "fa-solid fa-microphone",
-        text: "Reconfigure Voices",
-        href: "parse_voices.js"
-      }, {
-        icon: "fa-solid fa-plug",
-        text: "Reinstall",
-        href: "install.js"
-      }, {
-        icon: "fa-solid fa-rotate-left",
-        text: "Reset",
-        href: "reset.js"
-      }]
-    }
-
-    // STATE: COMPLETE - default to open audiobook
+    // STATE: INSTALLED
     return [{
       default: true,
-      icon: "fa-solid fa-play",
-      text: "Open Audiobook",
-      href: "cloned_audiobook.mp3"
+      icon: "fa-solid fa-power-off",
+      text: "Start",
+      href: "start.js"
     }, {
       icon: "fa-solid fa-folder-open",
-      text: "Open Voicelines Folder",
+      text: "Open Voicelines",
       href: "voicelines"
-    }, {
-      icon: "fa-solid fa-headphones",
-      text: "Regenerate Audiobook",
-      href: "generate_audiobook.js"
-    }, {
-      icon: "fa-solid fa-file-import",
-      text: "New Book",
-      href: "select_input_file.js"
     }, {
       icon: "fa-solid fa-plug",
       text: "Reinstall",
