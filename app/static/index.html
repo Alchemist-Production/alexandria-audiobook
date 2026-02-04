@@ -48,7 +48,8 @@
                     <li class="nav-item"><a class="nav-link active" data-tab="setup">1. Setup</a></li>
                     <li class="nav-item"><a class="nav-link" data-tab="script">2. Script</a></li>
                     <li class="nav-item"><a class="nav-link" data-tab="voices">3. Voices</a></li>
-                    <li class="nav-item"><a class="nav-link" data-tab="audio">4. Audio</a></li>
+                    <li class="nav-item"><a class="nav-link" data-tab="editor">4. Editor</a></li>
+                    <li class="nav-item"><a class="nav-link" data-tab="audio">5. Result</a></li>
                 </ul>
             </div>
         </div>
@@ -146,16 +147,47 @@
             </div>
         </div>
 
-        <!-- Audio Tab -->
+        <!-- Editor Tab -->
+        <div id="editor-tab" class="tab-content" style="display:none;">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                     <h4 class="m-0"><span class="step-indicator step-active">4</span>Audio Editor</h4>
+                     <div>
+                        <button class="btn btn-warning btn-sm" id="btn-merge"><i class="fas fa-file-audio me-1"></i>Merge All</button>
+                     </div>
+                </div>
+                <div class="card-body">
+                     <div class="table-responsive">
+                         <table class="table table-bordered table-hover">
+                             <thead>
+                                 <tr>
+                                     <th width="10%">Speaker</th>
+                                     <th width="40%">Text</th>
+                                     <th width="15%">Style</th>
+                                     <th width="10%">Status</th>
+                                     <th width="25%">Audio / Actions</th>
+                                 </tr>
+                             </thead>
+                             <tbody id="chunks-table-body">
+                                 <!-- Rows will be injected here -->
+                             </tbody>
+                         </table>
+                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Audio Result Tab -->
         <div id="audio-tab" class="tab-content" style="display:none;">
             <div class="card">
                 <div class="card-header">
-                    <h4><span class="step-indicator step-active">4</span>Generate & Play</h4>
+                    <h4><span class="step-indicator step-active">5</span>Final Result</h4>
                 </div>
                 <div class="card-body">
+                    <!-- Note: kept legacy button for quick full gen, but editor is preferred -->
                     <div class="d-grid gap-2 mb-4">
                         <button class="btn btn-warning btn-lg" id="btn-gen-audio">
-                            <i class="fas fa-headphones me-2"></i>Generate Audiobook
+                            <i class="fas fa-headphones me-2"></i>Regenerate Full Audiobook (Legacy)
                         </button>
                     </div>
 
@@ -195,7 +227,13 @@
                 // Hide all tabs
                 document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
                 // Show target tab
-                document.getElementById(e.target.dataset.tab + '-tab').style.display = 'block';
+                const targetId = e.target.dataset.tab + '-tab';
+                document.getElementById(targetId).style.display = 'block';
+
+                // Trigger tab specific loads
+                if (e.target.dataset.tab === 'editor') {
+                    loadChunks();
+                }
             });
         });
 
@@ -401,6 +439,108 @@
                 alert('Error saving voices: ' + e.message);
             }
         });
+
+        // --- Editor Tab ---
+        async function loadChunks() {
+            const tbody = document.getElementById('chunks-table-body');
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center">Loading chunks...</td></tr>';
+
+            try {
+                const chunks = await API.get('/api/chunks');
+                if (chunks.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center">No chunks found. Please generate script first.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = chunks.map(chunk => {
+                    const statusColor = chunk.status === 'done' ? 'success' :
+                                      chunk.status === 'generating' ? 'warning' :
+                                      chunk.status === 'error' ? 'danger' : 'secondary';
+
+                    const audioPlayer = chunk.audio_path ?
+                        `<audio controls src="/${chunk.audio_path}?t=${Date.now()}" style="width: 200px; height: 30px;"></audio>` :
+                        '<span class="text-muted small">No audio</span>';
+
+                    const generateBtn = chunk.status === 'generating' ?
+                        `<button class="btn btn-sm btn-secondary" disabled><i class="fas fa-spinner fa-spin"></i></button>` :
+                        `<button class="btn btn-sm btn-primary" onclick="generateChunk(${chunk.id})"><i class="fas fa-play"></i> Gen</button>`;
+
+                    return `
+                        <tr data-id="${chunk.id}">
+                            <td><input type="text" class="form-control form-control-sm" value="${chunk.speaker}" onchange="updateChunk(${chunk.id}, 'speaker', this.value)"></td>
+                            <td><textarea class="form-control form-control-sm" rows="2" onchange="updateChunk(${chunk.id}, 'text', this.value)">${chunk.text}</textarea></td>
+                            <td><input type="text" class="form-control form-control-sm" value="${chunk.style || ''}" onchange="updateChunk(${chunk.id}, 'style', this.value)"></td>
+                            <td><span class="badge bg-${statusColor}">${chunk.status}</span></td>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    ${generateBtn}
+                                    ${audioPlayer}
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+
+                // If any chunk is generating, poll
+                if (chunks.some(c => c.status === 'generating')) {
+                    setTimeout(loadChunks, 2000);
+                }
+
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="5" class="text-danger">Error loading chunks: ${e.message}</td></tr>`;
+            }
+        }
+
+        window.updateChunk = async (id, field, value) => {
+            try {
+                const data = {};
+                data[field] = value;
+                await API.post(`/api/chunks/${id}`, data);
+                // Don't reload entire table to preserve focus, but maybe update status badge if needed
+                // For now, next loadChunks will show updated status (pending)
+            } catch (e) {
+                console.error("Update failed", e);
+                alert("Failed to update chunk");
+            }
+        };
+
+        window.generateChunk = async (id) => {
+            try {
+                // Optimistic UI update
+                const tr = document.querySelector(`tr[data-id="${id}"]`);
+                if (tr) {
+                    const statusBadge = tr.querySelector('.badge');
+                    statusBadge.className = 'badge bg-warning';
+                    statusBadge.innerText = 'generating';
+
+                    const btn = tr.querySelector('button');
+                    btn.disabled = true;
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                }
+
+                await API.post(`/api/chunks/${id}/generate`, {});
+
+                // Start polling (or just wait a bit and reload)
+                setTimeout(loadChunks, 1000);
+            } catch (e) {
+                alert("Failed to start generation: " + e.message);
+                loadChunks(); // Revert UI
+            }
+        };
+
+        document.getElementById('btn-merge').addEventListener('click', async () => {
+             if (!confirm("Merge all valid audio chunks into final audiobook?")) return;
+
+             try {
+                 await API.post('/api/merge', {});
+                 // Switch to Result tab and poll
+                 document.querySelector('[data-tab="audio"]').click();
+                 pollLogs('audio', 'audio-logs');
+             } catch (e) {
+                 alert("Merge failed: " + e.message);
+             }
+        });
+
 
         // --- Audio Tab ---
         document.getElementById('btn-gen-audio').addEventListener('click', async () => {
