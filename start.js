@@ -18,5 +18,11 @@ module.exports = {
       uri: "{{local.url}}",
       target: "_blank"
     }
+  }, {
+    method: "input",
+    params: {
+      title: "Alexandria is Running",
+      description: "The application is running. You can close this tab to stop the server."
+    }
   }]
 }
