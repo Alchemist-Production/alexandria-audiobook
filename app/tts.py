@@ -147,7 +147,9 @@ def test_tts_connection(tts_url, voice_config):
         print(f"  Test successful! Output: {result[0]}")
         return True
     except Exception as e:
-        print(f"  TTS Test FAILED: {e}")
+        import traceback
+        traceback.print_exc()
+        print(f"  TTS Test FAILED: {type(e).__name__}: {e}")
         print("\nTroubleshooting tips:")
         print("  1. Make sure the TTS server is running")
         print("  2. Check if the CustomVoice model is loaded")
@@ -167,6 +169,13 @@ def generate_custom_voice(text, style, speaker, voice_config, output_path, clien
 
         # Preprocess text and extract non-verbal style cues
         processed_text, nonverbal_style = preprocess_text_for_tts(text)
+
+        if not processed_text:
+            print(f"Warning: processed text is empty for '{text}'. Generating silence.")
+            # Generate 0.5s silence
+            silence = AudioSegment.silent(duration=500)
+            silence.export(output_path, format="wav")
+            return True
 
         # Build the full style instruction:
         # 1. Non-verbal cues take priority (laughing, sighing, etc.)
@@ -231,6 +240,13 @@ def generate_clone_voice(text, speaker, voice_config, output_path, client):
 
         # Preprocess text (strip non-verbals but don't use style since clone doesn't support it)
         processed_text, _ = preprocess_text_for_tts(text)
+
+        if not processed_text:
+            print(f"Warning: processed text is empty for '{text}'. Generating silence.")
+            # Generate 0.5s silence
+            silence = AudioSegment.silent(duration=500)
+            silence.export(output_path, format="wav")
+            return True
 
         result = client.predict(
             handle_file(ref_audio),  # Reference audio file path (wrapped for Gradio)
