@@ -10,6 +10,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Dict
 import subprocess
+import aiofiles
+
+# Import ProjectManager
+from project import ProjectManager
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -38,6 +42,9 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 VOICELINES_DIR = os.path.join(ROOT_DIR, "voicelines")
 os.makedirs(VOICELINES_DIR, exist_ok=True)
 app.mount("/voicelines", StaticFiles(directory=VOICELINES_DIR), name="voicelines")
+
+# Initialize Project Manager
+project_manager = ProjectManager(ROOT_DIR)
 
 # CORS for development
 app.add_middleware(
@@ -72,6 +79,11 @@ class VoiceConfigItem(BaseModel):
 class ProcessStatus(BaseModel):
     running: bool
     logs: List[str]
+
+class ChunkUpdate(BaseModel):
+    text: Optional[str] = None
+    style: Optional[str] = None
+    speaker: Optional[str] = None
 
 # Global state for process tracking
 process_state = {
@@ -270,6 +282,52 @@ async def get_audiobook():
     if not os.path.exists(AUDIOBOOK_PATH):
         raise HTTPException(status_code=404, detail="Audiobook not found")
     return FileResponse(AUDIOBOOK_PATH)
+
+# --- Chunk Management Endpoints ---
+
+@app.get("/api/chunks")
+async def get_chunks():
+    chunks = project_manager.load_chunks()
+    return chunks
+
+@app.post("/api/chunks/{index}")
+async def update_chunk(index: int, update: ChunkUpdate):
+    data = update.dict(exclude_unset=True)
+    chunk = project_manager.update_chunk(index, data)
+    if not chunk:
+        raise HTTPException(status_code=404, detail="Chunk not found")
+    return chunk
+
+@app.post("/api/chunks/{index}/generate")
+async def generate_chunk_endpoint(index: int, background_tasks: BackgroundTasks):
+    def task():
+        project_manager.generate_chunk_audio(index)
+
+    background_tasks.add_task(task)
+    return {"status": "started"}
+
+@app.post("/api/merge")
+async def merge_audio_endpoint(background_tasks: BackgroundTasks):
+    # Reuse audio process state for merge if possible, or just background it
+    # For simplicity, we just background it and frontend will assume it works
+    # Or we can link it to process_state["audio"]
+
+    def task():
+        process_state["audio"]["running"] = True
+        process_state["audio"]["logs"] = ["Starting merge..."]
+        try:
+            success, msg = project_manager.merge_audio()
+            if success:
+                process_state["audio"]["logs"].append(f"Merge complete: {msg}")
+            else:
+                process_state["audio"]["logs"].append(f"Merge failed: {msg}")
+        except Exception as e:
+            process_state["audio"]["logs"].append(f"Merge error: {e}")
+        finally:
+            process_state["audio"]["running"] = False
+
+    background_tasks.add_task(task)
+    return {"status": "started"}
 
 if __name__ == "__main__":
     import uvicorn
