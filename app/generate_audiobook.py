@@ -134,9 +134,15 @@ def main():
                 chunk_speakers.append(speaker)
 
                 # Export individual voiceline
-                voiceline_filename = f"voiceline_{i+1:04d}_{sanitize_filename(speaker)}.mp3"
-                voiceline_path = os.path.join(voicelines_dir, voiceline_filename)
-                segment.export(voiceline_path, format="mp3")
+                voiceline_filename = f"voiceline_{i+1:04d}_{sanitize_filename(speaker)}"
+
+                try:
+                    mp3_path = os.path.join(voicelines_dir, f"{voiceline_filename}.mp3")
+                    segment.export(mp3_path, format="mp3")
+                except Exception as e:
+                    print(f"  MP3 conversion failed (ffmpeg missing?), saving as WAV: {e}")
+                    wav_path = os.path.join(voicelines_dir, f"{voiceline_filename}.wav")
+                    shutil.copy(temp_path, wav_path)
 
                 successful += 1
             except Exception as e:
@@ -161,9 +167,16 @@ def main():
     print(f"  Pause within same speaker: {SAME_SPEAKER_PAUSE_MS}ms")
 
     final_audio = combine_audio_with_pauses(audio_segments, chunk_speakers)
-    output_filename = "../cloned_audiobook.mp3"
-    final_audio.export(output_filename, format="mp3")
-    print(f"Combined audiobook saved as {output_filename}")
+
+    try:
+        output_filename = "../cloned_audiobook.mp3"
+        final_audio.export(output_filename, format="mp3")
+        print(f"Combined audiobook saved as {output_filename}")
+    except Exception as e:
+        print(f"Error saving MP3 audiobook: {e}")
+        output_filename = "../cloned_audiobook.wav"
+        final_audio.export(output_filename, format="wav")
+        print(f"Combined audiobook saved as {output_filename} (fallback)")
 
 
 if __name__ == '__main__':

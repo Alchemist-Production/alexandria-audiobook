@@ -47,12 +47,11 @@ def clean_json_string(text):
     # Remove thinking tags (various formats used by different models)
     # GLM, DeepSeek, Qwen, etc. use different thinking tag formats
     text = re.sub(r'<think>[\s\S]*?</think>', '', text)
+    text = re.sub(r'<thought>[\s\S]*?</thought>', '', text)
     text = re.sub(r'<thinking>[\s\S]*?</thinking>', '', text)
     text = re.sub(r'<reflection>[\s\S]*?</reflection>', '', text)
     text = re.sub(r'<reasoning>[\s\S]*?</reasoning>', '', text)
-    # Handle unclosed thinking tags (model started thinking but didn't close)
-    text = re.sub(r'<think>[\s\S]*$', '', text)
-    text = re.sub(r'<thinking>[\s\S]*$', '', text)
+    text = re.sub(r'\[THOUGHT\][\s\S]*?\[/THOUGHT\]', '', text, flags=re.IGNORECASE)
 
     # Remove markdown code blocks
     if "```" in text:
